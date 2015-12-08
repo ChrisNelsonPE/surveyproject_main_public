@@ -635,7 +635,14 @@ namespace Votations.NSurvey.WebControls
             bool flag = false;
             if (this.VoterAnswers.Voters.Rows.Count == 0)
             {
-                if ((this._resumeMode != ResumeMode.Automatic) || !this.ResumeSession(this.LoadResumeUidFromMedium()))
+                // If there's a resume code in the URL, use it.
+                string ResumeUID = this.Context.Request.QueryString["ResumeCode"];
+                if (ResumeUID != null)
+                {
+                    flag = this.ResumeSession(ResumeUID);
+                }
+                // Othewise, if loading a resume code from a cookie fails, set up explicitly.
+                else if ((this._resumeMode != ResumeMode.Automatic) || !this.ResumeSession(this.LoadResumeUidFromMedium()))
                 {
                     VoterAnswersData.VotersRow row = this.VoterAnswers.Voters.NewVotersRow();
                     row.SurveyId = this.SurveyId;
@@ -646,6 +653,7 @@ namespace Votations.NSurvey.WebControls
                     this.VoterAnswers.Voters.AddVotersRow(row);
                     this.OnVoterDataCreated(new FormItemEventArgs(this.VoterAnswers));
                 }
+                // Loading from a cookie succeeded.
                 else
                 {
                     flag = true;
@@ -1158,8 +1166,19 @@ namespace Votations.NSurvey.WebControls
             }
             else
             {
+                // Make a link which can be used to resume the survey.
+                // Don't include the resume UID twice if it's already there.
+                var resumeLink = string.Format(@"<a href='{0}{1}'>{2}</a>",
+					this.Page.Request.RawUrl,
+					this.Page.Request.QueryString["ResumeCode"] == null 
+                        ? "&resumecode=" + this.VoterAnswers.Voters[0].ResumeUID 
+                        : "",
+					this.VoterAnswers.Voters[0].ResumeUID);
+
                 this._questionContainer.Rows[1].ControlStyle.CopyFrom(this.ConfirmationMessageStyle);
-                this._questionContainer.Rows[1].Cells[0].Controls.Add(new LiteralControl(string.Format(ResourceManager.GetString("ManualProgressSaved", this.LanguageCode), this.VoterAnswers.Voters[0].ResumeUID)));
+                this._questionContainer.Rows[1].Cells[0].Controls.Add(new LiteralControl(string.Format(ResourceManager.GetString("ManualProgressSaved", 
+                    this.LanguageCode), 
+                    resumeLink)));
                 new Voter().SaveVoterProgress(this.VoterAnswers);
                 this.OnSessionSaved(new FormSessionEventArgs(this.VoterAnswers, this.VoterAnswers.Voters[0].ResumeUID));
             }
